@@ -705,13 +705,13 @@ addr64: [Base64]						is mod=0 & r_m=4; rexXprefix=0 & index64=4 & Base64    { e
 addr64: [simm32_64 + Index64*ss]		is mod=0 & r_m=4; Index64 & base64=5 & ss; simm32_64   { local tmp=simm32_64+Index64*ss; export tmp; }
 addr64: [Index64*ss]					is mod=0 & r_m=4; Index64 & base64=5 & ss; imm32=0 { local tmp=Index64*ss; export tmp; }
 addr64: [imm32_64]						is mod=0 & r_m=4; rexXprefix=0 & index64=4 & base64=5; imm32_64      { export *[const]:8 imm32_64; }
+addr64: [Base64 + simm8_64]				is mod=1 & r_m=4; rexXprefix=0 & index64=4 & Base64; simm8_64     { local tmp=simm8_64+Base64; export tmp; }
 addr64: [Base64 + Index64*ss + simm8_64] is mod=1 & r_m=4; Index64 & Base64 & ss; simm8_64 { local tmp=simm8_64+Base64+Index64*ss; export tmp; }
 addr64: [Base64 + Index64*ss]			is mod=1 & r_m=4; Index64 & Base64 & ss; simm8=0   { local tmp=Base64+Index64*ss; export tmp; }
-addr64: [Base64 + simm8_64]				is mod=1 & r_m=4; rexXprefix=0 & index64=4 & Base64; simm8_64     { local tmp=simm8_64+Base64; export tmp; }
-addr64: [Base64 + Index64*ss + simm32_64] is mod=2 & r_m=4; Index64 & Base64 & ss; simm32_64     { local tmp=simm32_64+Base64+Index64*ss; export tmp; }
 addr64: [Base64 + simm32_64]			is mod=2 & r_m=4; rexXprefix=0 & index64=4 & Base64; simm32_64        { local tmp=simm32_64+Base64; export tmp; }
-addr64: [Base64 + Index64*ss]			is mod=2 & r_m=4; Index64 & Base64 & ss; imm32=0   { local tmp=Base64+Index64*ss; export tmp; }
 addr64: [Base64]						is mod=2 & r_m=4; rexXprefix=0 & index64=4 & Base64; imm32=0      { export Base64; }
+addr64: [Base64 + Index64*ss + simm32_64] is mod=2 & r_m=4; Index64 & Base64 & ss; simm32_64     { local tmp=simm32_64+Base64+Index64*ss; export tmp; }
+addr64: [Base64 + Index64*ss]			is mod=2 & r_m=4; Index64 & Base64 & ss; imm32=0   { local tmp=Base64+Index64*ss; export tmp; }
 @endif
 
 currentCS: CS is protectedMode=0 & CS { tmp:4 = (inst_next >> 4) & 0xf000; CS = tmp:2; export CS; }
@@ -2779,6 +2779,7 @@ enterFrames: low5 is low5 { tmp:1 = low5; export tmp; }
 :J^cc rel8      is vexMode=0 & row=7 & cc; rel8                                       { if (cc) goto rel8; }
 :J^cc rel16     is vexMode=0 & bit64=0 & opsize=0 & byte=0xf; row=8 & cc; rel16       { if (cc) goto rel16; }
 :J^cc rel32     is vexMode=0 & opsize=1 & byte=0xf; row=8 & cc; rel32                 { if (cc) goto rel32; }
+:J^cc rel32     is vexMode=0 & opsize=2 & byte=0xf; row=8 & cc; rel32                 { if (cc) goto rel32; }
 # The following is vexMode=0 & picked up by the line above.  rel32 works for both 32 and 64 bit
 #@ifdef IA64
 #:J^cc rel32     is vexMode=0 & addrsize=2 & byte=0xf; row=8 & cc; rel32     { if (cc) goto rel32; }
@@ -6585,10 +6586,18 @@ define pcodeop pcmpeqb;
     Reg32 = zext(temp:2);
 }
 
-:PEXTRW        Reg32_m16, XmmReg1, imm8 is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x3A; byte=0x15; XmmReg1 ... & Reg32_m16; imm8
+#break PEXTRW with reg/mem dest into two constructors to handle zext in register case
+:PEXTRW        Rmr32, XmmReg1, imm8 is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x3A; byte=0x15; (mod = 3 & Rmr32 & check_Rmr32_dest) & XmmReg1 ; imm8
 {
     temp:16 = XmmReg1 >> ( (imm8 & 0x07) * 16 );
-    Reg32_m16 = zext(temp:2);
+    Rmr32 = zext(temp:2);
+    build check_Rmr32_dest;
+}
+
+:PEXTRW        m16, XmmReg1, imm8 is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x3A; byte=0x15; XmmReg1 ... & m16; imm8
+{
+    temp:16 = XmmReg1 >> ( (imm8 & 0x07) * 16 );
+    m16 = temp:2;
 }
 
 define pcodeop phaddd;
@@ -6807,16 +6816,19 @@ Order3: order3	is imm8 [ order3 = (((imm8 >> 6) & 0x3) << 5); ] { export *[const
 
 :PSHUFD         XmmReg1, XmmReg2, imm8  is vexMode=0 & $(PRE_66) & byte=0x0F; byte=0x70; xmmmod=3 & XmmReg1 & XmmReg2 ; imm8 & Order0 & Order1 & Order2 & Order3
 {
-    shifted:16 = XmmReg2 >> Order0;   
+    #in case XmmReg1 and XmmReg2 are the same register
+    local original_XmmReg2:16 = XmmReg2;
+    
+    shifted:16 = original_XmmReg2 >> Order0;   
     XmmReg1[0,32] = shifted:4;
     
-    shifted = XmmReg2 >> Order1;   
+    shifted = original_XmmReg2 >> Order1;   
     XmmReg1[32,32] = shifted:4;
 
-    shifted = XmmReg2 >> Order2;   
+    shifted = original_XmmReg2 >> Order2;   
     XmmReg1[64,32] = shifted:4;
 
-    shifted = XmmReg2 >> Order3;   
+    shifted = original_XmmReg2 >> Order3;   
     XmmReg1[96,32] = shifted:4;
 }
 
@@ -7054,14 +7066,17 @@ define pcodeop psraw;
 
 :PSRLW          XmmReg1, XmmReg2  is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0xD1; xmmmod = 3 & XmmReg1 & XmmReg2
 {
-    XmmReg1[0,16]   = XmmReg1[0,16]   >> XmmReg2[0,64];
-    XmmReg1[16,16]  = XmmReg1[16,16]  >> XmmReg2[0,64];
-    XmmReg1[32,16]  = XmmReg1[32,16]  >> XmmReg2[0,64];
-    XmmReg1[48,16]  = XmmReg1[48,16]  >> XmmReg2[0,64];
-    XmmReg1[64,16]  = XmmReg1[64,16]  >> XmmReg2[0,64];
-    XmmReg1[80,16]  = XmmReg1[80,16]  >> XmmReg2[0,64];
-    XmmReg1[96,16]  = XmmReg1[96,16]  >> XmmReg2[0,64];
-    XmmReg1[112,16] = XmmReg1[112,16] >> XmmReg2[0,64];
+    #save this off in case XmmReg1 and XmmReg2 are the same register
+    local count:8 = XmmReg2[0,64];
+    
+    XmmReg1[0,16]   = XmmReg1[0,16]   >> count;
+    XmmReg1[16,16]  = XmmReg1[16,16]  >> count;
+    XmmReg1[32,16]  = XmmReg1[32,16]  >> count;
+    XmmReg1[48,16]  = XmmReg1[48,16]  >> count;
+    XmmReg1[64,16]  = XmmReg1[64,16]  >> count;
+    XmmReg1[80,16]  = XmmReg1[80,16]  >> count;
+    XmmReg1[96,16]  = XmmReg1[96,16]  >> count;
+    XmmReg1[112,16] = XmmReg1[112,16] >> count;
 }
 
 :PSRLW          XmmReg2, imm8     is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x71; mod = 0b11 & reg_opcode=2 & XmmReg2; imm8
@@ -7086,10 +7101,13 @@ define pcodeop psraw;
 
 :PSRLD          XmmReg1, XmmReg2  is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0xD2; xmmmod = 3 & XmmReg1 & XmmReg2
 {
-    XmmReg1[0,32]  = XmmReg1[0,32]  >> XmmReg2[0,64];
-    XmmReg1[32,32] = XmmReg1[32,32] >> XmmReg2[0,64];
-    XmmReg1[64,32] = XmmReg1[64,32] >> XmmReg2[0,64];
-    XmmReg1[96,32] = XmmReg1[96,32] >> XmmReg2[0,64];
+    #save this off in case XmmReg1 and XmmReg2 are the same register
+    local count = XmmReg2[0,64];
+    
+    XmmReg1[0,32]  = XmmReg1[0,32]  >> count;
+    XmmReg1[32,32] = XmmReg1[32,32] >> count;
+    XmmReg1[64,32] = XmmReg1[64,32] >> count;
+    XmmReg1[96,32] = XmmReg1[96,32] >> count;
 }
 
 :PSRLD          XmmReg2, imm8     is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x72; mod = 0b11 & reg_opcode=2 & XmmReg2; imm8
@@ -7108,8 +7126,11 @@ define pcodeop psraw;
 
 :PSRLQ          XmmReg1, XmmReg2  is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0xD3; xmmmod = 3 & XmmReg1 & XmmReg2
 {
-    XmmReg1[0,64]  = XmmReg1[0,64]  >> XmmReg2[0,64];
-    XmmReg1[64,64] = XmmReg1[64,64] >> XmmReg2[0,64];
+    #save this off in case XmmReg1 and XmmReg2 are the same register
+    local count = XmmReg2[0,64];
+    
+    XmmReg1[0,64]  = XmmReg1[0,64]  >> count;
+    XmmReg1[64,64] = XmmReg1[64,64] >> count;
 }
 
 :PSRLQ          XmmReg2, imm8     is vexMode=0 &  $(PRE_66) & byte=0x0F; byte=0x73; mod = 0b11 & reg_opcode=2 & XmmReg2; imm8

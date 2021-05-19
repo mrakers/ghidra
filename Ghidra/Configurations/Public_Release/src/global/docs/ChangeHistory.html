@@ -6,6 +6,19 @@
   </HEAD>
 
 <BODY>
+<H1 align="center">Ghidra 9.2.4 Change History (April 2021)</H1>
+<blockquote><p><u>Improvements</u></p>
+<ul>
+    <li><I>Basic Infrastructure</I>. Improved support running under JDK 16.  Note that Ghidra still only officially supports JDK 11 LTS. (GP-824, Issue #2879, #2888)</li>
+</ul>
+</blockquote>
+<blockquote><p><u>Bugs</u></p>
+<ul>
+    <li><I>API</I>. Corrected error condition which could occur if overlay memory block duplicates another memory space name or overlay block name in a case-insensitive manner.  The names are intended to be case-sensitive. (GP-839, Issue #2898)</li>
+    <li><I>Demangler</I>. Improved handling of mangled names on thunk functions which were previously left unmangled and could prevent name of underlying thunked function from appearing. (GP-809)</li>
+</ul>
+</blockquote>
+
 <H1 align="center">Ghidra 9.2.3 Change History (March 2021)</H1>
 <blockquote><p><u>Improvements</u></p>
 <ul>
@@ -23,10 +36,13 @@
 <blockquote><p><u>Bugs</u></p>
 <ul>
     <li><I>Analysis</I>. The RTTI analyzer now runs prior to Reference analysis so that references into vftables are not turned into code or data before the vftables are created. (GP-517)</li>
-    <li><I>API</I>. <code>Funtion.getCalledFunctions(TaskMonitor)</code> and <code>Function.getCallingFunctions(TaskMonitor)</code> now support passing <code>null</code> for the task monitor parameter, which previously would have thrown an exception. (GP-589, Issue #2643)</li>
+    <li><I>API</I>. <code>Function.getCalledFunctions(TaskMonitor)</code> and <code>Function.getCallingFunctions(TaskMonitor)</code> now support passing <code>null</code> for the task monitor parameter, which previously would have thrown an exception. (GP-589, Issue #2643)</li>
     <li><I>Data Types</I>. Corrected segmented 32-bit pointer datatype address generation for 16:16 x86 far pointers. (GP-534, Issue #2548)</li>
     <li><I>Decompiler</I>. Fixed Decompiler issue where, when a function name extends beyond the line limit, an end-of-line comment could wrap around to additional lines without including additional <code>//</code> comment indicators. (GP-473)</li>
     <li><I>Decompiler</I>. Corrected an exception that could occur when attempting to edit function signature from the Decompiler. (GP-597, Issue #2601)</li>
+    <li><I>Demangler</I>. Changed return type applied to constructors by Demangler from <code>void</code> to <code>Undefined</code>, allowing the Decompiler to determine the type. (GP-790)</li>
+    <li><I>DWARF</I>. Improved handling of empty DWARF compile units. (GP-743)</li>
+    <li><I>DWARF</I>. Improved handling of DWARF function signatures when parameter info contains unsupported location opcodes or failed to resolve datatypes. (GP-794)</li>
     <li><I>Eclipse Integration</I>. When installing the SleighEditor into Eclipse, the plugin will now show up under the Ghidra category.  Previously the <B>Group Items by Category</B> option had to be turned off before the SleighEditor would appear as a visible entry. (GP-564)</li>
     <li><I>Eclipse Integration</I>. Fixed an issue with Eclipse PyDev breakpoints not catching. (GP-668, Issue #2713)</li>
     <li><I>Eclipse Integration</I>. Fixed an Eclipse GhidraDev exception that occurred when creating a new Ghidra scripting project if a <B>~/ghidra_scripts</B> directory did not exist. (GP-669)</li>
@@ -44,6 +60,7 @@
     <li><I>Importer:Mach-O</I>. Fixed an exception that occurred when importing Mach-O files that define zero <code>LC_BUILD_VERSION</code> tool entries. (GP-702, Issue #2192)</li>
     <li><I>PDB</I>. Fixed createPdbXmlFiles.bat to permit spaces in the path name of Ghidra installation folder and the batch argument name. (GP-575, Issue #2167)</li>
     <li><I>PDB</I>. Fixed PDB Universal analyzer to set the run-once flag when finished. (GP-724)</li>
+    <li><I>PDB</I>. Changed return type applied to constructors by PDB Universal from <code>void</code> to <code>Undefined</code>, allowing the Decompiler to determine the type. (GP-791)</li>
     <li><I>Processors</I>. Added missing <code>RFE</code> instruction in MIPS up to version R3000. (GP-33, Issue #1766)</li>
     <li><I>Processors</I>. ARM instruction <code>VMUL</code> now decodes correctly. (GP-627, Issue #2677)</li>
     <li><I>Processors</I>. Added missing <code>CFINV</code> instruction to AARCH64 processor specification and added definitions for locals in neon instructions. (GP-655, Issue #2710)</li>
@@ -327,7 +344,7 @@
 <ul>
     <li><I>Data Types</I>. Improved PDB composite reconstruction to attempt <code>pack(1)</code> alignment if default alignment fails. (GT-3401)</li>
     <li><I>Data Types</I>. Added missing support for multi-user merge of unions and structures containing bitfields or a trailing flexible array member. (GT-3479)</li>
-    <li><I>Data Types</I>. Corrected structure editor save button enablement issue when editing bitfields within an unaligned structure. (GT-3519, Issue #1297)</li>
+    <li><I>Data Types</I>. Corrected structure editor save button enablement issue when editing bitfields within a non-packed structure. (GT-3519, Issue #1297)</li>
     <li><I>Disassembly</I>. Corrected potential infinite loop with disassembler caused by branch to self with invalid delay slot instruction. (GT-3511, Issue #1486)</li>
     <li><I>GUI</I>. Corrected processor manual display for Microsoft Windows users, which was not displaying processor manual and was, instead, rendering a blank page in web browser. (GT-3444)</li>
     <li><I>GUI:Bitfield Editor</I>. Added field comment support to composite bitfield editor. (GT-3410)</li>
@@ -376,7 +393,7 @@
 <H1 align="center">Ghidra 9.1 Change History (October 2019)</H1>
 <blockquote><p><u>New Features</u></p>
 <ul>
-    <li><I>Data Types</I>. Added bit-field support to Structure and Union editor.  An additional Bit-field Editor was also added for explicit bit-field placement within unaligned structures. (GT-559)</li>
+    <li><I>Data Types</I>. Added bit-field support to Structure and Union editor.  An additional Bit-field Editor was also added for explicit bit-field placement within non-packed structures. (GT-559)</li>
     <li><I>Eclipse Integration</I>. Added new GhidraSleighEditor Eclipse plugin in the installation directory under Extensions/Eclipse. (GT-113)</li>
     <li><I>GUI</I>. Added method for turning off table sorting by control-clicking the only sorted table column. (GT-2763, Issue #87)</li>
     <li><I>GUI</I>. Hovering on an address will now show where the byte at that address came from in the imported file. (GT-3016, Issue #154)</li>
